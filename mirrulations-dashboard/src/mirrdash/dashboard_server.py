@@ -5,14 +5,12 @@ This module creates the dashboard application that queries
     of the containers.
 
 Dependencies:
-    docker, dotenv, flask, flask_cors, os, pymongo, redis
+    docker, flask, flask_cors, pymongo, redis
 """
-import os
 from flask import Flask, jsonify, render_template
 from flask_cors import CORS
 from redis import Redis
 from mirrdash.sum_mongo_counts import connect_mongo_db, get_done_counts
-from dotenv import load_dotenv
 import docker
 
 
@@ -94,9 +92,7 @@ def create_server(database, docker_server, mongo_client):
 
 
 if __name__ == '__main__':
-    load_dotenv()
-    mongo_host = os.getenv('MONGO_HOSTNAME')
-    server = create_server(Redis(os.getenv('REDIS_HOSTNAME')),
+    server = create_server(Redis('redis'),
                            docker.from_env(),
-                           connect_mongo_db(mongo_host, 27017))
+                           connect_mongo_db('mongo', 27017))
     server.app.run(port=5000)
