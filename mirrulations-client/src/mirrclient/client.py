@@ -37,13 +37,24 @@ class Client:
     def get_job(self):
         endpoint = f'{self.url}/get_job'
         params = {'client_id': self.client_id}
-        job_id, url = request_job(endpoint, dumps({}), params)
-        return job_id, url
+        response = requests.get(endpoint, params=params)
+        response_text = loads(response.text)
+        if 'job' not in response_text:
+            raise NoJobsAvailableException()
+        job = response_text['job']
+        job_id = list(job.keys())[0]
+        url = job[job_id]
+        if 'job_type' in job:
+            job_type = job['job_type']
+        else:
+            job_type = 'other'
+        return job_id, url, job_type
 
     def send_job_results(self, job_id, job_result):
         endpoint = f'{self.url}/put_results'
         if 'errors' in job_result:
-            data = {'job_id': job_id,
+            data = {
+                    'job_id': job_id,
                     'results': job_result
                     }
         else:
@@ -51,15 +62,23 @@ class Client:
                     'job_id': job_id,
                     'results': job_result}
         params = {'client_id': self.client_id}
+        # print('****\n\n\n')
         # print(dumps(data))
-        assure_request(requests.put, endpoint, json=dumps(data), params=params)
+        # print('****\n\n\n', flush=True)
+        requests.put(endpoint, json=dumps(data), params=params)
 
     def execute_task(self):
         print('Requesting new job from server...')
-        job_id, url = self.get_job()
+        job_id, url, job_type = self.get_job()
         print('Received job!')
-        result = self.perform_job(url)
         print('Sending result back to server...')
+        if job_type == 'attachments':
+            print("this is an attachment")
+            result = self.perform_attachment_job(url)
+            print("this is the result", result)
+            
+        else:
+            result = self.perform_job(url)
         self.send_job_results(job_id, result)
         print('Job complete!\n')
 
@@ -69,6 +88,15 @@ class Client:
         json = assure_request(requests.get, url).json()
         print('Done with current job!')
         return json
+
+    def perform_attachment_job(self, url):
+        return {"data":{"attachments_text": [str(url)],
+                "type": "attachment",
+                "id": str(url),
+                "attributes": {'agencyId': None,
+                            'docketId': None,
+                            'commentOnDocumentId': None}
+                }}
 
     def write_client_id(self, filename):
         with open(filename, 'w', encoding='utf8') as file:
@@ -91,8 +119,8 @@ def request_job(endpoint, data, params):
         raise NoJobsAvailableException()
     job = response_text['job']
     job_id = list(job.keys())[0]
-    value = job[job_id]
-    return job_id, value
+    url = job[job_id]
+    return job_id, url
 
 
 def assure_request(request, url, sleep_time=60, **kwargs):
@@ -134,6 +162,7 @@ def get_output_path(results):
         return -1
     output_path = ""
     data = results["data"]["attributes"]
+    # print(data + "printing data")
     output_path += get_key_path_string(data, "agencyId")
     output_path += get_key_path_string(data, "docketId")
     output_path += get_key_path_string(data, "commentOnDocumentId")
@@ -161,4 +190,5 @@ if __name__ == '__main__':
             client.execute_task()
         except NoJobsAvailableException:
             print("No Jobs Available")
+            
         time.sleep(3.6)
