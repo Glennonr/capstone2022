@@ -1,0 +1,4 @@
+#!/bin/bash
+docker-compose up -d nginx dashboard redis mongo work_server
+python3 attachments_generator.py
+
